@@ -10,14 +10,14 @@ const PIXABAY_API_KEY = '22753762-fd63e7dfb5c4c0a273cbd20a6';
 export default class App extends Component {
   state = {
     query: '',
-    images: null,
-    loading: false,
+    images: [],
     error: null,
+    status: 'idle',
   };
   async componentDidMount() {
     try {
       const response = await axios.get(
-        `https://pixabay.com/api/?q=${this.state.query}page=1&key=${PIXABAY_API_KEY}&image_type=photo&orientation=horizontal&per_page=12`
+        `https://pixabay.com/api/?q=${this.state.query}&page=1&key=${PIXABAY_API_KEY}&image_type=photo&orientation=horizontal&per_page=12`
       );
       this.setState({ images: response.data.hits });
     } catch (error) {
@@ -33,13 +33,22 @@ export default class App extends Component {
 
       this.setState({ loading: true });
 
-      fetch(
-        `https://pixabay.com/api/?q=${nextQuery}&page=1&key=${PIXABAY_API_KEY}&image_type=photo&orientation=horizontal&per_page=12`
-      )
-        .then(responce => responce.json())
-        .then(images => this.setState({ images }))
-        .catch(error => this.setState({ error }))
-        .finally(() => this.setState({ loading: false }));
+      axios
+        .get(
+          `https://pixabay.com/api/?q=${nextQuery}&page=1&key=${PIXABAY_API_KEY}&image_type=photo&orientation=horizontal&per_page=12`
+        )
+        .then(response => {
+          if (response.ok) {
+            return response.json();
+          }
+          return Promise.reject(
+            new Error(
+              `Nothing was found according to your "${nextQuery}" query try enother key word!`
+            )
+          );
+        })
+        .then(images => this.setState({ images, status: 'resolved' }))
+        .catch(error => this.setState({ error, status: 'rejected' }));
     }
   }
 
@@ -48,18 +57,20 @@ export default class App extends Component {
   };
 
   render() {
-    const { loading, images } = this.state;
+    const { status, images, error } = this.state;
+
+    if (status === 'pendig') {
+      return <h2>Loading...</h2>;
+    }
+    if (status === 'rejected') {
+      return <h2>{error.message}</h2>;
+    }
+    if (status === 'resolved') {
+      return <ImageGallery images={images}></ImageGallery>;
+    }
     return (
       <MainContainer>
-        {this.error && (
-          <h2>
-            Nothind was found according to your {this.query} try enother key
-            word!
-          </h2>
-        )}
-        {loading && <h1>Loading...</h1>}
         <Searchbar onSubmit={this.handleFormSubmit} />
-        {images && <ImageGallery images={images}></ImageGallery>}
       </MainContainer>
     );
   }
